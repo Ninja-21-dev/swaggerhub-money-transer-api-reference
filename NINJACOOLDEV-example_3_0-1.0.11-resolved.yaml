@@ -1,0 +1,3083 @@
+---
+openapi: 3.0.3
+info:
+  title: Swagger Thunes Documentation- OpenAPI 3.0
+  description: "# **Overview**\n\n## Introduction\n\nWelcome to the Money Transfer API reference.\n\nThis API serves as the primary gateway to facilitate money transfers through Thunes’ platform.\n\nThe Money Transfer API is organized according to [REST](https://en.wikipedia.org/wiki/Representational_state_transfer) principles and provides the following functionalities:\n\n- Process and retrieve transaction details\n- Account management services\n- Discovery services\n\n<img alt=\"simple-flow\" src=\"https://docs.thunes.com/money-transfer/v2/images/money_transfer.png\"/>\n\n\n\n## ***Environments***\nThis API is available in 2 environments: **production** and **pre-production**, reachable via IPSec VPN or HTTPS.\n\nSpecific details relating to the endpoints will be provided upon account creation.\n\nFor HTTPS connections, TLS version 1.2 onwards is required to reach **production** and **pre-production** environments.\n\n\n\n## ***Versioning***\nEndpoints of the API are prefixed with a corresponding version number. This documentation describes version 2 of the API. Documentation for version 1 of the API can be found [here](https://docs.thunes.com/money-transfer/v1/).\n\nThis method of versioning provides complete isolation between implementations and ensures that subsequent major changes to the API will not affect existing integrations. No breaking changes will be introduced within a major version.\n\nWhenever possible, Thunes will not change the API contract in a non-backward compatible way, if required, a new major version of the API will be released, however Thunes reserves the right to make additive changes or any non-breaking changes to our API without releasing a new major version or notifying clients.\n\nClients should design their implementation to not break if new fields or other non-breaking changes are introduced.\n    \n#### **Non-breaking changes**\nThunes regularly introduce backwards-compatible changes to our API to provide additional product features and capabilities. Non-breaking changes may be introduced without prior warning to users of the Thunes API. Examples of non-breaking changes would be:\n\n- New API endpoints\n- Additional new optional API request fields/parameters for existing endpoints\n- Additional new optional HTTP headers in API requests for existing endpoints\n- Additional new fields in API response for existing endpoints\n- Additional HTTP headers in API response for existing endpoints\n- Modification of text field values, for instance in error messages\n- Introduction of new [transaction statuses](https://docs.thunes.com/money-transfer/v2/#transaction-status) within a status class\n- Introduction of new required fields linked to specific payers (list of required fields for a given payer is available by - API, client implementation should rely on API response to define whether a field is mandatory)\n- Increasing length of existing text field in API requests\n- Adding new fields in callback endpoints\n\nThe client implementation should be designed with the above in mind, so that non-breaking changes do not adversely affect the implementation.\n\n\n#### **Breaking changes**\nA breaking change refers to a change that requires an application update to continue working with the API. Examples of breaking changes would be:\n\n- Removing or renaming an API endpoint\n- Changing the accepted values for an API request fields\n- Adding new mandatory field to an API request body, outside of information required for processing a transaction\n- Change in an API response structure (renaming of fields)\n\nWhenever possible, a new major version will be introduced if a breaking change is introduced. In the event that a breaking change is unavoidable and a new major version in not possible (e.g., change in regulation, compliance) Thunes will contact clients in advance to ensure there is sufficient time to update the client’s application.\n\n \n\n## Getting started\n\nThunes Money Transfer API allows to send transfers globally accross different payout ecosystems, Mobile Wallet, Bank Account, and Cash Pickup.\n\nTo send a transfer, the typical flow would be:\n\n- Retrieval of desired [payer](https://docs.thunes.com/money-transfer/v2/#payer) information\n\n[Discovery endpoints](https://docs.thunes.com/money-transfer/v2/#discovery) allows Thunes’ partner to retrieve list of services, countries, payers that are accessible to them. A payer in Thunes system represents the targeted destination crediting the money into the beneficiary account. Thunes coverage supports different payers across all services (banks, mobile wallets or cash pick-up networks) per country.\n\nAs part of the [payer](https://docs.thunes.com/money-transfer/v2/#payer) information, API user can dynamically retrieve requirement and information linked to the selected payer, like lower and upper limit of accepted transfer, mandatory parameter, currency (including precision and increment)\n\n- Quotation’s creation\n\nThe [quotation](https://docs.thunes.com/money-transfer/v2/#quotations) step allow partner to book a rate for a transfer to a specific payer, the quotation will indicates the amount that is been sent as well as the amount that will be received by the beneficiaty of the transfer.\n\n- Transaction’s creation\n\nFrom the quotation previsously created, partner is able to [create a transaction](https://docs.thunes.com/money-transfer/v2/#transactions), and input further details for the transfer, sender/beneficiary, account details for instance. [Optional documents](https://docs.thunes.com/money-transfer/v2/#add-attachment-to-a-transaction-by-external-id) can be uploaded at this stage\n\n- Transaction’s confirmation\n\nAfter the transaction has been created, the last step to process a transfer is to [confirm the transaction](https://docs.thunes.com/money-transfer/v2/#confirm-a-transaction-by-external-id), balance verification for instance will happen at that stage of the process.\n\n- Transaction status inquiry / callback processing\n\nTo check the status of the transfer, partner can provide a [callback](https://docs.thunes.com/money-transfer/v2/#callback) url, Thunes’ system will send a callback to this url, when the transaction status is updated. A partner is also able to [query the status of a transaction](https://docs.thunes.com/money-transfer/v2/#retrieve-transaction-information-by-transaction-id) in the API, to check its current status.\n\n<img alt=\"transaction_flow_2\" src=\"https://docs.thunes.com/money-transfer/v2/images/transaction_flow_2.png\"/>\n\n<img alt=\"transaction_flow_business\" src=\"https://docs.thunes.com/money-transfer/v2/images/transaction_flow_business.png\"/>\n\n\n## Transaction states\n\nDuring the course of a transfer, a transaction will undergo various status changes as illustrated in the diagram.\n\nConditions marked as “Upon request to customer care team” pertain to reversal and/or cancellation. These must be requested through the Thunes customer care team, who will act accordingly.\n\nIf a callback URL has been provided, updates will be sent to the URL in real-time when changes in transaction status occur. In addition, transaction status can be queried through one of two means: via the returned `id` or a provided `external_id`.\n\n<img alt=\"transaction_flow_business\" src=\"https://docs.thunes.com/money-transfer/v2/images/transaction_states_2.png\"/>\n\nThe latter serves as a unique reference from the perspective of the sending partner. This allows transaction details to be retrieved when exceptions occur, for example if an expected response was not received and the transaction success is unknown.\n\nThe numerical values within each of the illustrated states correspond to the [transaction status](https://docs.thunes.com/money-transfer/v2/#transaction-status), while the labels correspond to that of the [transaction status class](https://docs.thunes.com/money-transfer/v2/#transaction-status-class) message.\n\n## Callback\n\nWhile the transfer order is processed, changes in status will be notified in realtime to the provided callback URL (if provided).\n\nThe sending partner must implement this endpoint to receive these status changes. The endpoint should expect an HTTP `POST` request containing a [transaction](https://docs.thunes.com/money-transfer/v2/#transaction) object represented in JSON.\n\nUpon sucessful receipt of data, the callback endpoint should respond with an HTTP `2XX`. In the event that the Money Transfer platform did not receive this response, callback notifications will be retried several times, beyond which, the transaction status will have to be queried by the sending partner.\n\n```\n  POST /callback HTTP/1.1\n  Date: Wed, 02 Nov 2016 09:17:54 GMT\n  Content-Type: application/json\n\n  {\n     \"id\": 1,\n     \"status\": \"70000\",\n     \"status_message\": \"COMPLETED\",\n     \"status_class\": \"7\",\n     \"status_class_message\": \"COMPLETED\",\n     \"external_id\": \"1478078339357\",\n     \"external_code\": null,\n     \"transaction_type\": \"C2C\",\n     \"payer_transaction_reference\": \"SP-000-123\",\n     \"payer_transaction_code\": \"SP-ABC-DEF\",\n     \"creation_date\": \"2016-11-02T09:19:15\",\n     \"expiration_date\": \"2016-11-03T09:07:44\",\n     \"credit_party_identifier\": {\n        \"msisdn\": \"+263775892100\",\n        \"bank_account_number\": \"0123456789\",\n        \"swift_bic_code\": \"ABCDEFGH\"\n     },\n     \"source\": {\n        \"country_iso_code\": \"FRA\",\n        \"currency\": \"EUR\",\n        \"amount\": 10\n     },\n     \"destination\": {\n        \"currency\": \"USD\",\n        \"amount\": 10.69\n     },\n     \"payer\": {\n        \"id\": 1,\n        \"name\": \"Sample Payer\",\n        \"currency\": \"USD\",\n        \"country_iso_code\": \"ZWE\",\n        \"service\": {\n           \"id\": 1,\n           \"name\": \"MobileWallet\"\n        }\n     },\n     \"sender\": {\n        \"lastname\": \"Doe\",\n        \"lastname2\": null,\n        \"middlename\": null,\n        \"firstname\": \"John\",\n        \"nativename\": null,\n        \"nationality_country_iso_code\": \"FRA\",\n        \"code\": null,\n        \"date_of_birth\": \"1970-01-01\",\n        \"country_of_birth_iso_code\": \"FRA\",\n        \"gender\": \"MALE\",\n        \"address\": \"42 Rue des fleurs\",\n        \"postal_code\": \"75000\",\n        \"city\": \"Paris\",\n        \"country_iso_code\": \"FRA\",\n        \"msisdn\": \"33712345678\",\n        \"email\": \"john.doe@mail.com\",\n        \"id_type\": \"SOCIAL_SECURITY\",\n        \"id_country_iso_code\": null,\n        \"id_number\": \"502-42-0158\",\n        \"id_delivery_date\": \"2016-01-01\",\n        \"id_expiration_date\": null,\n        \"occupation\": \"Residential Advisor\",\n        \"province_state\": null,\n        \"beneficiary_relationship\": null,\n        \"source_of_funds\": null,\n        \"bank_account_number\": null\n     },\n     \"beneficiary\": {\n        \"lastname\": \"Doe\",\n        \"lastname2\": null,\n        \"middlename\": null,\n        \"firstname\": \"Jane\",\n        \"nativename\": null,\n        \"nationality_country_iso_code\": \"FRA\",\n        \"code\": null,\n        \"date_of_birth\": \"1971-01-01\",\n        \"country_of_birth_iso_code\": \"ZWE\",\n        \"gender\": \"MALE\",\n        \"address\": \"3 Norfolk Road\",\n        \"postal_code\": \"4581\",\n        \"city\": \"Harare\",\n        \"country_iso_code\": \"ZWE\",\n        \"msisdn\": \"263775892364\",\n        \"email\": \"jane.doe@mail.com\",\n        \"id_type\": \"SOCIAL_SECURITY\",\n        \"id_country_iso_code\": \"ZWE\",\n        \"id_number\": \"178027317681327\",\n        \"id_delivery_date\": null,\n        \"id_expiration_date\": null,\n        \"occupation\": \"Sales Executive\",\n        \"bank_account_holder_name\": null,\n        \"province_state\": null\n     },\n     \"callback_url\": \"{URL_PLACEHOLDER}\",\n     \"sent_amount\": {\n        \"currency\": \"EUR\",\n        \"amount\": 10\n     },\n     \"wholesale_fx_rate\": 1.06891969534071,\n     \"retail_rate\": null,\n     \"retail_fee\": 1,\n     \"retail_fee_currency\": \"EUR\",\n     \"fee\": {\n        \"currency\": \"EUR\",\n        \"amount\": 1.88\n     },\n     \"purpose_of_remittance\": \"FAMILY_SUPPORT\",\n     \"document_reference_number\": null,\n     \"additional_information_1\": null,\n     \"additional_information_2\": null,\n     \"additional_information_3\": null\n  }\n```\n\n\n# **TOPICS**\n\n## Authentication\n\nAccess to all endpoints of the API requires authentication through [HTTP Basic Authentication](https://en.wikipedia.org/wiki/Basic_access_authentication).\n\n\n## ***Basic Authentication***\n\n<table>\n  <thead>\n    <tr>\n      <th> URL Part </th>\n      <th> Value </th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td>user-ID</td>\n      <td>API key</td>\n    </tr>\n    <tr>\n      <td>password</td>\n      <td>API secret</td>\n    </tr>\n  </tbody>\n</table>\n  \nYour API keys and secrets represent your identity and authorization. Please keep and store them securely!\n\n```\ncurl https://${API_ENDPOINT}/ping \\ -u \"${API_KEY}:${API_SECRET}\"\n```\n\nAPI credentials should not be shared or stored in clear text. Once in your possession, it is on you to keep those credentials safe.\n\nAvoid storing your credentials in your source code, or in your version control system, like github for instance. Instead, you can use environment variables to pass secrets into your application, following the 12 factor app principles, use a vault mechanism (HashiCorp Vault, AWS Secret Manager, Secret in Kubernetes, …), or provide them through a configuration file excluded from your version control, provisioned automatically within your deployment process, only readable by the application.\n\n\n\n\n## Errors\n## ***HTTP Response***\n\nThunes uses standard HTTP response codes to indicate whether an API request is successful or not.\n<table>\n  <thead>\n    <tr>\n      <th> Status </th>\n      <th> Description </th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td>200</td>\n      <td>OK</td>\n    </tr>\n    <tr>\n      <td>400</td>\n      <td>Bad Request:\nRequest was malformed</td>\n    </tr>\n    <tr>\n      <td>401</td>\n      <td>Unauthorized:\nCredentials missing or invalid</td>\n    </tr>\n    <tr>\n      <td>404</td>\n      <td>Not Found:\nResource doesn’t exist</td>\n    </tr>\n    <tr>\n      <td>500</td>\n      <td>Server Error:\nAn internal server error occurred processing the request\n</td>\n    </tr>\n  </tbody>\n</table>\n\n\nDetails will always be contained within the HTTP body.\n\n\n```\nHTTP/1.1 401 Unauthorized\n\n{\n    \"errors\": [\n        {\n            \"code\": \"1000401\",\n            \"message\": \"Unauthorized\"\n        }\n    ]\n}\n```\n\n## ***API Error Codes***\n\n<table>\n  <thead>\n    <tr>\n      <th> Code </th>\n      <th> Description </th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td>1000401</td>\n      <td>Unauthorized</td>\n    </tr>\n    <tr>\n      <td>1000404</td>\n      <td>Resource not found</td>\n    </tr>\n    <tr>\n      <td>1000999</td>\n      <td>Invalid parameter</td>\n    </tr>\n    <tr>\n      <td>1000998</td>\n      <td>Source country not authorized</td>\n    </tr>\n    <tr>\n      <td>1003001</td>\n      <td>Payer is inactive in your account</td>\n    </tr>\n    <tr>\n      <td>1003002</td>\n      <td>Invalid payer</td>\n    </tr>\n    <tr>\n      <td>1003007</td>\n      <td>Payer is currently unavailable</td>\n    </tr>\n    <tr>\n      <td>1003008</td>\n      <td>Destination amount is invalid</td>\n    </tr>\n    <tr>\n      <td>1003009</td>\n      <td>Parameter page is outside of the page range</td>\n    </tr>\n    <tr>\n      <td>1003010</td>\n      <td>Destination currency not provided by payer</td>\n    </tr>\n    <tr>\n      <td>1003011</td>\n      <td>Transaction amount below minimum of the selected payer</td>\n    </tr>\n    <tr>\n      <td>1003012</td>\n      <td>Transaction amount exceeds maximum of the selected payer</td>\n    </tr>\n    <tr>\n      <td>1005001</td>\n      <td>Account is invalid</td>\n    </tr>\n    <tr>\n      <td>1006001</td>\n      <td>Transaction amount limit exceeded</td>\n    </tr>\n    <tr>\n      <td>1006002</td>\n      <td>Account quantity limit exceeded</td>\n    </tr>\n    <tr>\n      <td>1006099</td>\n      <td>Limit exceeded</td>\n    </tr>\n    <tr>\n      <td>1007001</td>\n      <td>External ID has already been used</td>\n    </tr>\n    <tr>\n      <td>1007002</td>\n      <td>Transaction has already been confirmed</td>\n    </tr>\n    <tr>\n      <td>1007003</td>\n      <td>Transaction can not be confirmed</td>\n    </tr>\n    <tr>\n      <td>1007004</td>\n      <td>Transaction can no longer be confirmed, quotation has expired</td>\n    </tr>\n    <tr>\n      <td>1007005</td>\n      <td>Transaction can not be confirmed, insufficient balance</td>\n    </tr>\n    <tr>\n      <td>1007014</td>\n      <td>Transaction can not be cancelled</td>\n    </tr>\n    <tr>\n      <td>1007100</td>\n      <td>Method is not supported by this payer</td>\n    </tr>\n    <tr>\n      <td>1007101</td>\n      <td>Method is currently unavailable</td>\n    </tr>\n    <tr>\n      <td>1007401</td>\n      <td>Attachment is too big</td>\n    </tr>\n    <tr>\n      <td>1007402</td>\n      <td>Max number of attachments reached</td>\n    </tr>\n    <tr>\n      <td>1007403</td>\n      <td>Adding attachment is not allowed after transaction is confirmed</td>\n    </tr>\n    <tr>\n      <td>1007404</td>\n      <td>Transaction attachment not found</td>\n    </tr>\n    <tr>\n      <td>1007405</td>\n      <td>Attachment file type is invalid</td>\n    </tr>\n    <tr>\n      <td>1008002</td>\n      <td>Quotation not found</td>\n    </tr>\n    <tr>\n      <td>1008003</td>\n      <td>Quotation has expired</td>\n    </tr>\n    <tr>\n      <td>1008004</td>\n      <td>Transaction not found</td>\n    </tr>\n    <tr>\n      <td>1009001</td>\n      <td>Unexpected error, please contact our support team</td>\n    </tr>\n  </tbody>\n</table>\n  \n## Pagination\n\nAPI resources supporting bulk fetches via “list” API methods will be returned in a paginated fashion.\n```\nGET /{resource}?page=1&per_page=50 HTTP/1.1\nX-Total: 1\nX-Total-Pages: 1\nX-Per-Page: 50\nX-Page: 1\n```\n\n## ***Input Parameters***\n<table>\n  <thead>\n    <tr>\n      <th>Field</th>\n      <th>Required</th>\n      <th>Type</th>\n      <th>Description</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td>page</td>\n      <td>No</td>\n      <td>Integer</td>\n      <td>Page number</td>\n    </tr>\n  <tr>\n    <td>per_page</td>\n    <td>No</td>\n    <td>Integer</td>\n    <td>Number of results per page (default 50, maximum 100)</td>\n  </tr>\n  </tbody>\n</table>\n\n\n## ***Output Headers***\n<table>\n  <thead>\n    <tr>\n      <td>Field</td>\n      <td>Description</td>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td>X-Total</td>\n      <td>Total number of records</td>\n    </tr>\n    <tr>\n      <td>X-Total-Pages</td>\n      <td>Total number of pages</td>\n    </tr>\n    <tr>\n      <td>X-Per-Page</td>\n      <td>Number of records per page</td>\n    </tr>\n    <tr>\n      <td>X-Page</td>\n      <td>Current page number</td>\n    </tr>\n    <tr>\n      <td>X-Next-Page</td>\n      <td>Next page number (if any)</td>\n    </tr>\n    <tr>\n      <td>X-Prev-Page</td>\n      <td>Previous page number (if any)</td>\n    </tr>\n  </tbody>\n</table>\n\n# ENDPOINTS"
+  termsOfService: http://swagger.io/terms/
+  contact:
+    email: apiteam@swagger.io
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  version: 1.0.11
+externalDocs:
+  description: Find out more about Swagger
+  url: http://swagger.io
+servers:
+- url: https://petstore3.swagger.io/api/v3
+tags:
+- name: Connectivity
+  description: Everything about your connection
+- name: Discovery
+  description: These endpoints are used to provide lists of information to the caller.
+- name: Account
+- name: Credit Parties
+- name: Transfers
+- name: pet
+  description: Everything about your Pets
+  externalDocs:
+    description: Find out more
+    url: http://swagger.io
+- name: store
+  description: Access to Petstore orders
+  externalDocs:
+    description: Find out more about our store
+    url: http://swagger.io
+- name: user
+  description: Operations about user
+paths:
+  /ping:
+    get:
+      tags:
+      - Connectivity
+      summary: Query API status and check connectivity.
+      description: Query API status and check connectivity.
+      operationId: ping
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        "400":
+          description: Invalid Request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "405":
+          description: Validation exception
+  /v2/money-transfer/services:
+    get:
+      tags:
+      - Discovery
+      summary: List services available
+      description: Retrieves a list of all services available to the caller.
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        "400":
+          description: Invalid Request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "405":
+          description: Validation exception
+  /v2/money-transfer/payers:
+    get:
+      tags:
+      - Discovery
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        "400":
+          description: Invalid Request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "405":
+          description: Validation exception
+  /v2/money-transfer/payers/{id}:
+    get:
+      tags:
+      - Discovery
+      parameters:
+      - name: id
+        in: path
+        description: ID of pet to return
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        "400":
+          description: Invalid Request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "405":
+          description: Validation exception
+  /v2/money-transfer/payers/{id}/rates:
+    get:
+      tags:
+      - Discovery
+      parameters:
+      - name: id
+        in: path
+        description: ID of pet to return
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        "400":
+          description: Invalid Request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "405":
+          description: Validation exception
+  /v2/money-transfer/countries:
+    get:
+      tags:
+      - Discovery
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        "400":
+          description: Invalid Request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "405":
+          description: Validation exception
+  /v2/money-transfer/lookups/BIC/{swift_bic_code}:
+    get:
+      tags:
+      - Discovery
+      parameters:
+      - name: swift_bic_code
+        in: path
+        description: ID of pet to return
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        "400":
+          description: Invalid Request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "405":
+          description: Validation exception
+  /v2/money-transfer/balances:
+    get:
+      tags:
+      - Account
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        "400":
+          description: Invalid Request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "405":
+          description: Validation exception
+  /v2/money-transfer/payers/{id}/{transaction_type}/credit-party-information:
+    post:
+      tags:
+      - Credit Parties
+      parameters:
+      - name: id
+        in: path
+        description: ID of pet to return
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int64
+      - name: transaction_type
+        in: path
+        description: ID of pet to return
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        "400":
+          description: Invalid Request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "405":
+          description: Validation exception
+  /v2/money-transfer/payers/{id}/{transaction_type}/credit-party-verification:
+    post:
+      tags:
+      - Credit Parties
+      parameters:
+      - name: id
+        in: path
+        description: ID of pet to return
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int64
+      - name: transaction_type
+        in: path
+        description: ID of pet to return
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        "400":
+          description: Invalid Request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "405":
+          description: Validation exception
+  /v2/money-transfer/quotations:
+    post:
+      tags:
+      - Transfers
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        "400":
+          description: Invalid Request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "405":
+          description: Validation exception
+  /v2/money-transfer/quotations/{id}:
+    get:
+      tags:
+      - Transfers
+      parameters:
+      - name: id
+        in: path
+        description: ID of pet to return
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        "400":
+          description: Invalid Request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "405":
+          description: Validation exception
+  /v2/money-transfer/quotations/ext-{external_id}:
+    get:
+      tags:
+      - Transfers
+      parameters:
+      - name: external_id
+        in: path
+        description: ID of pet to return
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        "400":
+          description: Invalid Request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "405":
+          description: Validation exception
+  /v2/money-transfer/quotations/{id}/transactions:
+    post:
+      tags:
+      - Transfers
+      parameters:
+      - name: id
+        in: path
+        description: ID of pet to return
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        "400":
+          description: Invalid Request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "405":
+          description: Validation exception
+  /v2/money-transfer/quotations/ext-{external_id}/transactions:
+    post:
+      tags:
+      - Transfers
+      parameters:
+      - name: external_id
+        in: path
+        description: ID of pet to return
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        "400":
+          description: Invalid Request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "405":
+          description: Validation exception
+  /v2/money-transfer/transactions/{id}/attachments:
+    get:
+      tags:
+      - Transfers
+      parameters:
+      - name: id
+        in: path
+        description: ID of pet to return
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        "400":
+          description: Invalid Request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "405":
+          description: Validation exception
+    post:
+      tags:
+      - Transfers
+      parameters:
+      - name: id
+        in: path
+        description: ID of pet to return
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        "400":
+          description: Invalid Request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "405":
+          description: Validation exception
+  /v2/money-transfer/transactions/ext-{external_id}/attachments:
+    post:
+      tags:
+      - Transfers
+      parameters:
+      - name: external_id
+        in: path
+        description: ID of pet to return
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        "400":
+          description: Invalid Request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "405":
+          description: Validation exception
+  /v2/money-transfer/transactions/{id}/confirm:
+    post:
+      tags:
+      - Transfers
+      parameters:
+      - name: id
+        in: path
+        description: ID of pet to return
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        "400":
+          description: Invalid Request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "405":
+          description: Validation exception
+  /v2/money-transfer/transactions/ext-{external_id}/confirm:
+    post:
+      tags:
+      - Transfers
+      parameters:
+      - name: external_id
+        in: path
+        description: ID of pet to return
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        "400":
+          description: Invalid Request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "405":
+          description: Validation exception
+  /v2/money-transfer/transactions/{id}:
+    post:
+      tags:
+      - Transfers
+      parameters:
+      - name: id
+        in: path
+        description: ID of pet to return
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        "400":
+          description: Invalid Request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "405":
+          description: Validation exception
+  /v2/money-transfer/transactions/ext-{external_id}:
+    get:
+      tags:
+      - Transfers
+      parameters:
+      - name: external_id
+        in: path
+        description: ID of pet to return
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        "400":
+          description: Invalid Request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "405":
+          description: Validation exception
+  /v2/money-transfer/transactions/ext-{external-id}/attachments:
+    get:
+      tags:
+      - Transfers
+      parameters:
+      - name: external-id
+        in: path
+        description: ID of pet to return
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        "400":
+          description: Invalid Request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "405":
+          description: Validation exception
+  /v2/money-transfer/transactions/{id}/cancel:
+    post:
+      tags:
+      - Transfers
+      parameters:
+      - name: id
+        in: path
+        description: ID of pet to return
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        "400":
+          description: Invalid Request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "405":
+          description: Validation exception
+  /v2/money-transfer/transactions/ext-{external_id}/cancel:
+    post:
+      tags:
+      - Transfers
+      parameters:
+      - name: external_id
+        in: path
+        description: ID of pet to return
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        "400":
+          description: Invalid Request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
+        "405":
+          description: Validation exception
+  /callback:
+    put:
+      tags:
+      - pet
+      summary: Update an existing pet
+      description: Update an existing pet by Id
+      operationId: updatePet
+      requestBody:
+        description: Update an existent pet in the store
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Pet'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/Pet'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Pet'
+        required: true
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        "400":
+          description: Invalid ID supplied
+        "404":
+          description: Pet not found
+        "405":
+          description: Validation exception
+      security:
+      - petstore_auth:
+        - write:pets
+        - read:pets
+    post:
+      tags:
+      - pet
+      summary: Add a new pet to the store
+      description: Add a new pet to the store
+      operationId: addPet
+      requestBody:
+        description: Create a new pet in the store
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Pet'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/Pet'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Pet'
+        required: true
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        "405":
+          description: Invalid input
+      security:
+      - petstore_auth:
+        - write:pets
+        - read:pets
+  /pet/findByStatus:
+    get:
+      tags:
+      - pet
+      summary: Finds Pets by status
+      description: Multiple status values can be provided with comma separated strings
+      operationId: findPetsByStatus
+      parameters:
+      - name: status
+        in: query
+        description: Status values that need to be considered for filter
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+          default: available
+          enum:
+          - available
+          - pending
+          - sold
+      responses:
+        "200":
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Pet'
+            application/xml:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Pet'
+        "400":
+          description: Invalid status value
+      security:
+      - petstore_auth:
+        - write:pets
+        - read:pets
+  /pet/findByTags:
+    get:
+      tags:
+      - pet
+      summary: Finds Pets by tags
+      description: Multiple tags can be provided with comma separated strings. Use tag1, tag2, tag3 for testing.
+      operationId: findPetsByTags
+      parameters:
+      - name: tags
+        in: query
+        description: Tags to filter by
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items:
+            type: string
+      responses:
+        "200":
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Pet'
+            application/xml:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Pet'
+        "400":
+          description: Invalid tag value
+      security:
+      - petstore_auth:
+        - write:pets
+        - read:pets
+  /pet/{petId}:
+    get:
+      tags:
+      - pet
+      summary: Find pet by ID
+      description: Returns a single pet
+      operationId: getPetById
+      parameters:
+      - name: petId
+        in: path
+        description: ID of pet to return
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        "400":
+          description: Invalid ID supplied
+        "404":
+          description: Pet not found
+      security:
+      - api_key: []
+      - petstore_auth:
+        - write:pets
+        - read:pets
+    post:
+      tags:
+      - pet
+      summary: Updates a pet in the store with form data
+      description: ""
+      operationId: updatePetWithForm
+      parameters:
+      - name: petId
+        in: path
+        description: ID of pet that needs to be updated
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int64
+      - name: name
+        in: query
+        description: Name of pet that needs to be updated
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+      - name: status
+        in: query
+        description: Status of pet that needs to be updated
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+      responses:
+        "405":
+          description: Invalid input
+      security:
+      - petstore_auth:
+        - write:pets
+        - read:pets
+    delete:
+      tags:
+      - pet
+      summary: Deletes a pet
+      description: delete a pet
+      operationId: deletePet
+      parameters:
+      - name: api_key
+        in: header
+        description: ""
+        required: false
+        style: simple
+        explode: false
+        schema:
+          type: string
+      - name: petId
+        in: path
+        description: Pet id to delete
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "400":
+          description: Invalid pet value
+      security:
+      - petstore_auth:
+        - write:pets
+        - read:pets
+  /pet/{petId}/uploadImage:
+    post:
+      tags:
+      - pet
+      summary: uploads an image
+      description: ""
+      operationId: uploadFile
+      parameters:
+      - name: petId
+        in: path
+        description: ID of pet to update
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int64
+      - name: additionalMetadata
+        in: query
+        description: Additional Metadata
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+      security:
+      - petstore_auth:
+        - write:pets
+        - read:pets
+  /store/inventory:
+    get:
+      tags:
+      - store
+      summary: Returns pet inventories by status
+      description: Returns a map of status codes to quantities
+      operationId: getInventory
+      responses:
+        "200":
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: integer
+                  format: int32
+      security:
+      - api_key: []
+  /store/order:
+    post:
+      tags:
+      - store
+      summary: Place an order for a pet
+      description: Place a new order in the store
+      operationId: placeOrder
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Order'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/Order'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Order'
+      responses:
+        "200":
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        "405":
+          description: Invalid input
+  /store/order/{orderId}:
+    get:
+      tags:
+      - store
+      summary: Find purchase order by ID
+      description: For valid response try integer IDs with value <= 5 or > 10. Other values will generate exceptions.
+      operationId: getOrderById
+      parameters:
+      - name: orderId
+        in: path
+        description: ID of order that needs to be fetched
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/Order'
+        "400":
+          description: Invalid ID supplied
+        "404":
+          description: Order not found
+    delete:
+      tags:
+      - store
+      summary: Delete purchase order by ID
+      description: For valid response try integer IDs with value < 1000. Anything above 1000 or nonintegers will generate API errors
+      operationId: deleteOrder
+      parameters:
+      - name: orderId
+        in: path
+        description: ID of the order that needs to be deleted
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "400":
+          description: Invalid ID supplied
+        "404":
+          description: Order not found
+  /user:
+    post:
+      tags:
+      - user
+      summary: Create user
+      description: This can only be done by the logged in user.
+      operationId: createUser
+      requestBody:
+        description: Created user object
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/User'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/User'
+      responses:
+        default:
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/User'
+  /user/createWithList:
+    post:
+      tags:
+      - user
+      summary: Creates list of users with given input array
+      description: Creates list of users with given input array
+      operationId: createUsersWithListInput
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/User'
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/User'
+        default:
+          description: successful operation
+  /user/login:
+    get:
+      tags:
+      - user
+      summary: Logs user into the system
+      description: ""
+      operationId: loginUser
+      parameters:
+      - name: username
+        in: query
+        description: The user name for login
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+      - name: password
+        in: query
+        description: The password for login in clear text
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: successful operation
+          headers:
+            X-Rate-Limit:
+              description: calls per hour allowed by the user
+              style: simple
+              explode: false
+              schema:
+                type: integer
+                format: int32
+            X-Expires-After:
+              description: date in UTC when token expires
+              style: simple
+              explode: false
+              schema:
+                type: string
+                format: date-time
+          content:
+            application/xml:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: string
+        "400":
+          description: Invalid username/password supplied
+  /user/logout:
+    get:
+      tags:
+      - user
+      summary: Logs out current logged in user session
+      description: ""
+      operationId: logoutUser
+      parameters: []
+      responses:
+        default:
+          description: successful operation
+  /user/{username}:
+    get:
+      tags:
+      - user
+      summary: Get user by user name
+      description: ""
+      operationId: getUserByName
+      parameters:
+      - name: username
+        in: path
+        description: 'The name that needs to be fetched. Use user1 for testing. '
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/User'
+        "400":
+          description: Invalid username supplied
+        "404":
+          description: User not found
+    put:
+      tags:
+      - user
+      summary: Update user
+      description: This can only be done by the logged in user.
+      operationId: updateUser
+      parameters:
+      - name: username
+        in: path
+        description: name that need to be deleted
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      requestBody:
+        description: Update an existent user in the store
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/User'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/User'
+      responses:
+        default:
+          description: successful operation
+    delete:
+      tags:
+      - user
+      summary: Delete user
+      description: This can only be done by the logged in user.
+      operationId: deleteUser
+      parameters:
+      - name: username
+        in: path
+        description: The name that needs to be deleted
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      responses:
+        "400":
+          description: Invalid username supplied
+        "404":
+          description: User not found
+components:
+  schemas:
+    Service:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Service ID
+        name:
+          type: string
+          description: Service Name
+    Payer:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Payer ID
+        name:
+          type: string
+          description: Payer name
+        precision:
+          type: integer
+          description: Number of digits after decimal point
+        increment:
+          type: string
+          description: Unit of increment for transaction amounts
+        currency:
+          type: integer
+          description: Currency in [ISO-4217](https://en.wikipedia.org/wiki/ISO_4217) format
+        country_iso_code:
+          type: string
+          description: Country in ISO 3166-1 alpha-3 format
+        service:
+          type: integer
+          description: Service information
+        transaction_types:
+          type: string
+          description: List of transaction types supported with relevant information
+    PayerSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Payer ID
+        name:
+          type: string
+          description: Payer name
+        currency:
+          type: string
+          description: Currency in ISO-4217 format
+        country_iso_code:
+          type: string
+          description: Country in ISO 3166-1 alpha-3 format
+        service:
+          allOf:
+          - type: object
+          - description: '[Service](#/components/schemas/Service) information'
+          - $ref: '#/components/schemas/Service'
+    TransactionTypeInfoList:
+      type: object
+      properties:
+        C2C:
+          type: object
+          description: Transaction type information relevant to C2C
+        C2B:
+          type: object
+          description: Transaction type information relevant to C2B
+        B2C:
+          type: object
+          description: Transaction type information relevant to B2C
+        B2B:
+          type: object
+          description: Transaction type information relevant to B2B
+    TransactionTypeInfo:
+      type: object
+      properties:
+        minimum_transaction_amount:
+          type: number
+          description: Minimum transaction amount
+        maximum_transaction_amount:
+          type: number
+          description: Transaction type information relevant to C2B
+        credit_party_identifiers_accepted:
+          type: array
+          description: Transaction type information relevant to B2C
+          items:
+            $ref: '#/components/schemas/Country'
+        required_sending_entity_fields:
+          type: array
+          description: Transaction type information relevant to B2B
+          items:
+            type: object
+        required_receiving_entity_fields:
+          type: array
+          description: Transaction type information relevant to C2C
+          items:
+            $ref: '#/components/schemas/Country'
+        required_documents:
+          type: array
+          description: Transaction type information relevant to C2B
+          items:
+            $ref: '#/components/schemas/Country'
+        credit_party_information:
+          type: object
+          description: Transaction type information relevant to B2C
+        credit_party_verification:
+          type: object
+          description: Transaction type information relevant to B2B
+    RatesPerTransactionType:
+      type: object
+      properties:
+        transaction_type:
+          type: object
+          description: a object rates for the specfic transaction type of payer
+    Rates:
+      type: object
+      properties:
+        transaction_type:
+          type: array
+          description: a object rates for the specfic transaction type of payer
+          items:
+            $ref: '#/components/schemas/Country'
+    Rate:
+      type: object
+      properties:
+        source_amount_min:
+          type: number
+          description: Minimum source amount value
+        source_amount_max:
+          type: number
+          description: Maximum source amount value
+        wholesale_fx_rate:
+          type: number
+          description: Wholesale FX rate
+    Balance:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Balance ID
+        currency:
+          type: string
+          description: Currency in ISO 4217 format
+        balance:
+          type: number
+          description: Current balance
+        pending:
+          type: number
+          description: Amount in transit (Transaction confirmed, not completed nor decliend yet)
+        available:
+          type: number
+          description: Available amount for transacting
+        credit_facility:
+          type: number
+          description: Credit facility
+    Quotation:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Quotation ID
+        external_id:
+          type: string
+          description: External reference ID. This is the reference for this quotation from the external system.
+        payer:
+          type: object
+          description: Payer information
+        mode:
+          type: string
+          description: Quotation mode
+        transaction_type:
+          type: string
+          description: Transaction type
+        source:
+          type: object
+          description: Source information
+        destination:
+          type: object
+          description: Destination information
+        sent_amount:
+          type: object
+          description: Sent amount information
+        wholesale_fx_rate:
+          type: number
+          description: Wholesale FX rate
+        fee:
+          type: object
+          description: Fee information
+        creation_date:
+          type: string
+          description: Creation date in HTTP format
+        expiration_date:
+          type: string
+          description: Expiration date in HTTP format
+    Transaction:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Transaction ID
+        status:
+          type: string
+          description: Transaction status code
+        status_message:
+          type: string
+          description: Transaction status description
+        status_class:
+          type: string
+          description: Transaction status class
+        status_class_message:
+          type: string
+          description: Transaction status class description
+        external_id:
+          type: string
+          description: External ID
+        external_code:
+          type: string
+          description: External reference code
+        transaction_type:
+          type: string
+          description: Transaction type
+        payer_transaction_reference:
+          type: string
+          description: Payer transaction reference
+        payer_transaction_code:
+          type: object
+          description: Payer transaction code
+        creation_date:
+          type: string
+          description: Creation date in HTTP format
+        expiration_date:
+          type: string
+          description: Expiration date in HTTP format
+        credit_party_identifier:
+          type: object
+          description: Credit party information
+        source:
+          type: object
+          description: Source information
+        destination:
+          type: object
+          description: Destination information
+        payer:
+          type: string
+          description: Payer information
+        sender:
+          type: string
+          description: Sender information
+        beneficiary:
+          type: object
+          description: Beneficiary information
+        sending_business:
+          type: object
+          description: Sending business information
+        receiving_business:
+          type: object
+          description: Receiving business information
+        callback_url:
+          type: string
+          description: Callback URL
+        sent_amount:
+          type: object
+          description: Sent amount information
+        wholesale_fx_rate:
+          type: number
+          description: Wholesale FX rate
+        retail_rate:
+          type: number
+          description: Retail rate
+        retail_fee:
+          type: number
+          description: Retail fee
+        retail_fee_currency:
+          type: string
+          description: Retail fee currency in ISO 4217 format
+        fee:
+          type: object
+          description: Fee information
+        purpose_of_remittance:
+          type: string
+          description: Purpose of remittance
+        document_reference_number:
+          type: string
+          description: Reference number of document related to the transaction
+        additional_information_1:
+          type: string
+          description: Additional information
+        additional_information_2:
+          type: string
+          description: Additional information
+        additional_information_3:
+          type: string
+          description: Additional information
+    TransactionAttachment:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Transaction Attachment ID
+        transaction_id:
+          type: integer
+          description: Transaction ID of related Transaction
+        name:
+          type: string
+          description: Name of the attachment
+        content_type:
+          type: string
+          description: Content type of the attachment
+        type:
+          type: string
+          description: Transaction type
+    Source:
+      required:
+      - amount
+      - country_iso_code
+      - currency
+      type: object
+      properties:
+        country_iso_code:
+          type: string
+          description: Country code in ISO 3166-1 alpha-3 format
+        currency:
+          type: string
+          description: Source currency in ISO 4217 format
+        amount:
+          type: number
+          description: Source amount
+    Destination:
+      required:
+      - amount
+      - currency
+      type: object
+      properties:
+        currency:
+          type: string
+          description: Destination currency in ISO 4217 format
+        amount:
+          type: number
+          description: Destination amount
+    CreditPartyIdentifier:
+      type: object
+      properties:
+        msisdn:
+          type: string
+          description: MSISDN in international format
+        bank_account_number:
+          type: string
+          description: Bank account number
+        iban:
+          type: string
+          description: Bank account number in IBAN format
+        clabe:
+          type: string
+          description: Bank account number in CLABE format
+        cbu:
+          type: string
+          description: Bank account number in CBU format
+        cbu_alias:
+          type: string
+          description: Bank account number in CBU ALIAS format
+        swift_bic_code:
+          type: string
+          description: SWIFT-BIC code
+        bik_code:
+          type: string
+          description: Russian BIK code
+        ifs_code:
+          type: string
+          description: IFSC code
+        sort_code:
+          type: string
+          description: Sort code
+        aba_routing_number:
+          type: string
+          description: ABA Routing Transfer Numbe
+        bsb_number:
+          type: string
+          description: BSB number
+        branch_number:
+          type: string
+          description: Branch number
+        routing_code:
+          type: string
+          description: Routing code
+        entity_tt_id:
+          type: integer
+          description: Entity ID
+        account_type:
+          type: string
+          description: Account type
+        account_number:
+          type: string
+          description: Account number
+        email:
+          type: string
+          description: Email address
+    RequiredCreditPartyInfo:
+      required:
+      - credit_party_identifiers_accepted
+      type: object
+      properties:
+        credit_party_identifiers_accepted:
+          type: array
+          description: List of credit party identifier fields
+          items:
+            $ref: '#/components/schemas/Country'
+    RequiredCreditPartyVerification:
+      required:
+      - credit_party_identifiers_accepted
+      - required_receiving_entity_fields
+      type: object
+      properties:
+        credit_party_identifiers_accepted:
+          type: array
+          description: List of credit party identifier fields
+          items:
+            $ref: '#/components/schemas/Country'
+        required_receiving_entity_fields:
+          type: array
+          description: List of required receiving entity information
+          items:
+            $ref: '#/components/schemas/Country'
+    Sender:
+      type: object
+      properties:
+        lastname:
+          type: string
+          description: Last name
+        lastname2:
+          type: string
+          description: Additional last name(s)
+        middlename:
+          type: string
+          description: Middle name
+        firstname:
+          type: string
+          description: First name
+        nativename:
+          type: string
+          description: Full name in native characters
+        nationality_country_iso_code:
+          type: string
+          description: Nationality in ISO 3166-1 alpha-3 format
+        code:
+          type: string
+          description: Sender identification code
+        date_of_birth:
+          type: string
+          description: Date of birth in ISO 8601 format
+        country_of_birth_iso_code:
+          type: string
+          description: Country of birth in ISO 3166-1 alpha-3 format
+        gender:
+          type: string
+          description: Gender
+        address:
+          type: string
+          description: Address
+        postal_code:
+          type: string
+          description: Postal code
+        city:
+          type: string
+          description: City
+        country_iso_code:
+          type: string
+          description: Address country in ISO 3166-1 alpha-3 format
+        msisdn:
+          type: string
+          description: MSISDN in international format
+        email:
+          type: string
+          description: Email address
+        id_type:
+          type: string
+          description: Presented identification type
+        id_country_iso_code:
+          type: string
+          description: ID country in ISO 3166-1 alpha-3 format
+        id_number:
+          type: string
+          description: Presented identification number
+        id_delivery_date:
+          type: string
+          description: ID delivery date in ISO 8601 format
+        id_expiration_date:
+          type: string
+          description: ID expiration date in ISO 8601 format
+        occupation:
+          type: string
+          description: Occupation
+        bank_account_number:
+          type: string
+          description: Bank account number
+        province_state:
+          type: string
+          description: Address province/state
+        beneficiary_relationship:
+          type: string
+          description: Relationship to beneficiary
+        source_of_funds:
+          type: string
+          description: Source of funds
+    SendingBusiness:
+      type: object
+      properties:
+        registered_name:
+          type: string
+          description: Registered name of the business
+        trading_name:
+          type: string
+          description: Trading name of the business
+        address:
+          type: string
+          description: Adress
+        postal_code:
+          type: string
+          description: Postal code
+        city:
+          type: string
+          description: City
+        province_state:
+          type: string
+          description: Address province/state
+        country_iso_code:
+          type: string
+          description: Country of the business in ISO 3166-1 alpha-3 format
+        msisdn:
+          type: string
+          description: MSISDN in international format
+        email:
+          type: string
+          description: Email address
+        registration_number:
+          type: string
+          description: Registration number
+        code:
+          type: string
+          description: Sending Business identification code
+        tax_id:
+          type: string
+          description: Tax identifier
+        date_of_incorporation:
+          type: string
+          description: Date of incorporation of the business in ISO 8601 format
+        representative_lastname:
+          type: string
+          description: Last name of the representative of the business
+        representative_lastname2:
+          type: string
+          description: Additional last name(s) of the representative of the business
+        representative_firstname:
+          type: string
+          description: First name of the representative of the business
+        representative_middlename:
+          type: string
+          description: Middle name of the representative of the business
+        representative_nativename:
+          type: string
+          description: Full name in native characters of the representative of the business
+        representative_id_type:
+          type: string
+          description: Presented identification type of the representative of the business
+        representative_id_country_iso_code:
+          type: string
+          description: ID delivery date in ISO 8601 format
+        representative_id_number:
+          type: string
+          description: Presented identification number
+        representative_id_delivery_date:
+          type: string
+          description: ID delivery date in ISO 8601 format
+        representative_id_expiration_date:
+          type: string
+          description: ID expiration date in ISO 8601 format
+    Beneficiary:
+      type: object
+      properties:
+        lastname:
+          type: string
+          description: Last name
+        lastname2:
+          type: string
+          description: Additional last name(s)
+        middlename:
+          type: string
+          description: Middle name
+        firstname:
+          type: string
+          description: First name
+        nativename:
+          type: string
+          description: Full name in native characters
+        nationality_country_i:
+          type: string
+          description: Nationality in ISO 3166-1 alpha-3 format so_code
+        code:
+          type: string
+          description: Beneficiary identification code
+        date_of_birth:
+          type: string
+          description: Date of birth in ISO 8601 format
+        country_of_birth_iso_code:
+          type: string
+          description: Country of birth in ISO 3166-1 alpha-3 format
+        gender:
+          type: string
+          description: Gender
+        address:
+          type: string
+          description: Address
+        postal_code:
+          type: string
+          description: Postal code
+        city:
+          type: string
+          description: City
+        country_iso_code:
+          type: string
+          description: Address country in ISO 3166-1 alpha-3 format
+        msisdn:
+          type: string
+          description: MSISDN in international format
+        email:
+          type: string
+          description: Email address
+        id_type:
+          type: string
+          description: Presented identification type
+        id_country_iso_code:
+          type: string
+          description: ID country in ISO 3166-1 alpha-3 format
+        id_number:
+          type: string
+          description: Presented identification number
+        id_delivery_date:
+          type: string
+          description: ID delivery date in ISO 8601 format
+        id_expiration_date:
+          type: string
+          description: ID expiration date in ISO 8601 format
+        occupation:
+          type: string
+          description: Occupation
+        bank_account_holder_name:
+          type: string
+          description: Bank account holder name
+        province_state:
+          type: string
+          description: Address province/state
+    ReceivingBusiness:
+      type: object
+      properties:
+        registered_name:
+          type: string
+          description: Registered name of the business
+        trading_name:
+          type: string
+          description: Trading name of the business
+        address:
+          type: string
+          description: Adress
+        postal_code:
+          type: string
+          description: Postal code
+        city:
+          type: string
+          description: City
+        province_state:
+          type: string
+          description: Address province/state
+        country_iso_code:
+          type: string
+          description: Country of the business in ISO 3166-1 alpha-3 format
+        msisdn:
+          type: string
+          description: MSISDN in international format
+        email:
+          type: string
+          description: Email address
+        registration_number:
+          type: string
+          description: Registration number
+        tax_id:
+          type: string
+          description: Tax identifier
+        date_of_incorporation:
+          type: string
+          description: Date of incorporation of the business in ISO 8601 forma
+        representative_lastname:
+          type: string
+          description: Last name of the representative of the business
+        representative_lastname2:
+          type: string
+          description: Additional last name(s) of the representative of the business
+        representative_firstname:
+          type: string
+          description: First name of the representative of the business
+        representative_middlename:
+          type: string
+          description: Middle name of the representative of the business
+        representative_nativename:
+          type: string
+          description: Full name in native characters of the representative of the business
+        representative_id_type:
+          type: string
+          description: Presented identification type of the representative of the business
+        representative_id_country_iso_code:
+          type: string
+          description: ID delivery date in ISO 8601 format
+        representative_id_number:
+          type: string
+          description: Presented identification number
+        representative_id_delivery_date:
+          type: string
+          description: ID delivery date in ISO 8601 format
+        representative_id_expiration_date:
+          type: string
+          description: ID expiration date in ISO 8601 format
+    SentAmount:
+      type: object
+      properties:
+        currency:
+          type: string
+          description: Sent amount currency in ISO 4217 format
+        amount:
+          type: number
+          description: Sent amount value
+    Fee:
+      type: object
+      properties:
+        currency:
+          type: string
+          description: Fee amount currency in ISO 4217 format
+        amount:
+          type: number
+          description: Fee amount value
+    Country:
+      type: object
+      properties:
+        iso_code:
+          type: string
+          description: Country in ISO 3166-1 alpha-3 format
+        name:
+          type: string
+          description: Country name
+    AdministrativeDivisionCategory:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Category ID
+        name:
+          type: string
+          description: Category name
+    AdministrativeDivision:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Division ID
+        name:
+          type: string
+          description: Division name
+        depth:
+          type: integer
+          description: Depth relative to hierarchy
+        parent_id:
+          type: integer
+          description: Division parent (if any)
+        category:
+          type: object
+          description: Administrative division category information
+    Entity:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Division ID
+        name:
+          type: string
+          description: Entity name
+        depth:
+          type: integer
+          description: Depth relative to hierarchy
+        address:
+          type: string
+          description: Registered address
+        country_iso_code:
+          type: string
+          description: Address country in ISO 3166-1 alpha-3 format
+        parent_id:
+          type: integer
+          description: Division parent (if any)
+        identifiers:
+          type: array
+          description: List of entity identifier objects
+          items:
+            $ref: '#/components/schemas/Country'
+        payment_systems:
+          type: array
+          description: List of entity payment system objects
+          items:
+            $ref: '#/components/schemas/Country'
+        payers:
+          type: array
+          description: List of entity payer objects
+          items:
+            $ref: '#/components/schemas/Country'
+        category:
+          type: object
+          description: Entity category information
+        administrative_division:
+          type: object
+          description: Administrative division information
+    EntityIdentifier:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Entity identifier ID
+        code:
+          type: string
+          description: Entity identifier code
+        values:
+          type: array
+          description: List of entity identifier values
+          items:
+            $ref: '#/components/schemas/Country'
+    EntityPaymentSystem:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Entity identifier ID
+        code:
+          type: string
+          description: Entity identifier code
+        values:
+          type: array
+          description: List of entity identifier values
+          items:
+            $ref: '#/components/schemas/Country'
+    EntityPayer:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Entity payer ID
+        code:
+          type: string
+          description: Entity payer code
+        values:
+          type: array
+          description: Currency in ISO-4217 format
+          items:
+            $ref: '#/components/schemas/Country'
+    EntityCategory:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Entity category ID name
+    Order:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 10
+        petId:
+          type: integer
+          format: int64
+          example: 198772
+        quantity:
+          type: integer
+          format: int32
+          example: 7
+        shipDate:
+          type: string
+          format: date-time
+        status:
+          type: string
+          description: Order Status
+          example: approved
+          enum:
+          - placed
+          - approved
+          - delivered
+        complete:
+          type: boolean
+      xml:
+        name: order
+    Customer:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 100000
+        username:
+          type: string
+          example: fehguy
+        address:
+          type: array
+          xml:
+            name: addresses
+            wrapped: true
+          items:
+            $ref: '#/components/schemas/Address'
+      xml:
+        name: customer
+    Address:
+      type: object
+      properties:
+        street:
+          type: string
+          example: 437 Lytton
+        city:
+          type: string
+          example: Palo Alto
+        state:
+          type: string
+          example: CA
+        zip:
+          type: string
+          example: "94301"
+      xml:
+        name: address
+    Category:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        name:
+          type: string
+          example: Dogs
+      xml:
+        name: category
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 10
+        username:
+          type: string
+          example: theUser
+        firstName:
+          type: string
+          example: John
+        lastName:
+          type: string
+          example: James
+        email:
+          type: string
+          example: john@email.com
+        password:
+          type: string
+          example: "12345"
+        phone:
+          type: string
+          example: "12345"
+        userStatus:
+          type: integer
+          description: User Status
+          format: int32
+          example: 1
+      xml:
+        name: user
+    Tag:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+      xml:
+        name: tag
+    Pet:
+      required:
+      - name
+      - photoUrls
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 10
+        name:
+          type: string
+          example: doggie
+        category:
+          $ref: '#/components/schemas/Category'
+        photoUrls:
+          type: array
+          xml:
+            wrapped: true
+          items:
+            type: string
+            xml:
+              name: photoUrl
+        tags:
+          type: array
+          xml:
+            wrapped: true
+          items:
+            $ref: '#/components/schemas/Tag'
+        status:
+          type: string
+          description: pet status in the store
+          enum:
+          - available
+          - pending
+          - sold
+      xml:
+        name: pet
+    ApiResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        type:
+          type: string
+        message:
+          type: string
+      xml:
+        name: '##default'
+  responses:
+    "400":
+      description: Invalid Request
+    "401":
+      description: Unauthorized
+    "403":
+      description: Forbidden
+    "404":
+      description: Not found
+    "405":
+      description: Validation exception
+    Ping:
+      description: aaaaatest_description
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status:
+                type: string
+                description: API status
+    PayerRates:
+      description: aaaaatest_description
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              destination_currency:
+                type: string
+                description: Currency in ISO 4217 format
+              rates:
+                type: object
+                description: Rates information
+    Verification:
+      description: aaaaatest_description
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              id:
+                type: integer
+                description: Verification request ID
+              account_status:
+                type: string
+                description: Account status
+  requestBodies:
+    Services:
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              page:
+                type: integer
+                description: Page number
+              per_page:
+                type: integer
+                description: Number of results per page (default 50, max 100)
+              country_iso_code:
+                type: string
+                description: Country code in ISO 3166-1 alpha-3 format
+    Payers:
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              page:
+                type: integer
+                description: Page number
+              per_page:
+                type: integer
+                description: Number of results per page (default 50, max 100)
+              service_id:
+                type: integer
+                description: Service ID
+              country_iso_code:
+                type: string
+                description: Country code in ISO 3166-1 alpha-3 format
+              currency:
+                type: string
+                description: Currency in ISO 4217 format
+    Countries:
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              page:
+                type: integer
+                description: Page number
+              per_page:
+                type: integer
+                description: Number of results per page (default 50, max 100)
+    Lookups:
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              page:
+                type: integer
+                description: Page number
+              per_page:
+                type: integer
+                description: Number of results per page (default 50, max 100)
+    Balances:
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              page:
+                type: integer
+                description: Page number
+              per_page:
+                type: integer
+                description: Number of results per page (default 50, max 100)
+    Information:
+      content:
+        application/json:
+          schema:
+            required:
+            - credit_party_identifier
+            type: object
+            properties:
+              credit_party_identifier:
+                type: object
+                description: Credit party identifier information
+    Verification:
+      content:
+        application/json:
+          schema:
+            required:
+            - credit_party_identifier
+            type: object
+            properties:
+              credit_party_identifier:
+                type: object
+                description: Credit party identifier information
+              beneficiary:
+                type: object
+                description: Beneficiary information
+              receiving_business:
+                type: object
+                description: Receiving business information information
+    Quotation:
+      content:
+        application/json:
+          schema:
+            required:
+            - destination
+            - external_id
+            - mode
+            - payer_id
+            - source
+            - transaction_type
+            type: object
+            properties:
+              external_id:
+                type: string
+                description: External reference ID
+              payer_id:
+                type: integer
+                description: Payer ID
+              mode:
+                type: string
+                description: Quotation mode
+              transaction_type:
+                type: string
+                description: Transaction type
+              source:
+                type: object
+                description: Source information
+              destination:
+                type: object
+                description: Destination information
+    TransactionC2C:
+      content:
+        application/json:
+          schema:
+            required:
+            - beneficiary
+            - credit_party_identifier
+            - external_id
+            - purpose_of_remittance
+            - sender
+            type: object
+            properties:
+              credit_party_identifier:
+                type: object
+                description: Credit party identifier
+              retail_rate:
+                type: number
+                description: Retail rate
+              retail_fee:
+                type: number
+                description: Retail fee
+              retail_fee_currency:
+                type: string
+                description: Retail fee currency in ISO 4217 format
+              sender:
+                type: object
+                description: Sender information
+              beneficiary:
+                type: object
+                description: Beneficiary information
+              sending_business:
+                type: object
+                description: Sending business information
+              receiving_business:
+                type: object
+                description: Receiving business information
+              external_id:
+                type: string
+                description: External ID
+              external_code:
+                type: string
+                description: External reference code
+              callback_url:
+                type: string
+                description: Callback URL
+              purpose_of_remittance:
+                type: string
+                description: Purpose of the remittance
+              document_reference_number:
+                type: string
+                description: Reference number of document related to the transaction
+              additional_information_1:
+                type: string
+                description: Additional information
+              additional_information_2:
+                type: string
+                description: Additional information
+              additional_information_3:
+                type: string
+                description: Additional information
+    TransactionC2B:
+      content:
+        application/json:
+          schema:
+            required:
+            - credit_party_identifier
+            - external_id
+            - purpose_of_remittance
+            - receiving_business
+            - sender
+            type: object
+            properties:
+              credit_party_identifier:
+                type: object
+                description: Credit party identifier
+              retail_rate:
+                type: number
+                description: Retail rate
+              retail_fee:
+                type: number
+                description: Retail fee
+              retail_fee_currency:
+                type: string
+                description: Retail fee currency in ISO 4217 format
+              sender:
+                type: object
+                description: Sender information
+              beneficiary:
+                type: object
+                description: Beneficiary information
+              sending_business:
+                type: object
+                description: Sending business information
+              receiving_business:
+                type: object
+                description: Receiving business information
+              external_id:
+                type: string
+                description: External ID
+              external_code:
+                type: string
+                description: External reference code
+              callback_url:
+                type: string
+                description: Callback URL
+              purpose_of_remittance:
+                type: string
+                description: Purpose of the remittance
+              document_reference_number:
+                type: string
+                description: Reference number of document related to the transaction
+              additional_information_1:
+                type: string
+                description: Additional information
+              additional_information_2:
+                type: string
+                description: Additional information
+              additional_information_3:
+                type: string
+                description: Additional information
+    TransactionB2C:
+      content:
+        application/json:
+          schema:
+            required:
+            - beneficiary
+            - credit_party_identifier
+            - external_id
+            - purpose_of_remittance
+            - sending_business
+            type: object
+            properties:
+              credit_party_identifier:
+                type: object
+                description: Credit party identifier
+              retail_rate:
+                type: number
+                description: Retail rate
+              retail_fee:
+                type: number
+                description: Retail fee
+              retail_fee_currency:
+                type: string
+                description: Retail fee currency in ISO 4217 format
+              sender:
+                type: object
+                description: Sender information
+              beneficiary:
+                type: object
+                description: Beneficiary information
+              sending_business:
+                type: object
+                description: Sending business information
+              receiving_business:
+                type: object
+                description: Receiving business information
+              external_id:
+                type: string
+                description: External ID
+              external_code:
+                type: string
+                description: External reference code
+              callback_url:
+                type: string
+                description: Callback URL
+              purpose_of_remittance:
+                type: string
+                description: Purpose of the remittance
+              document_reference_number:
+                type: string
+                description: Reference number of document related to the transaction
+              additional_information_1:
+                type: string
+                description: Additional information
+              additional_information_2:
+                type: string
+                description: Additional information
+              additional_information_3:
+                type: string
+                description: Additional information
+    TransactionB2B:
+      content:
+        application/json:
+          schema:
+            required:
+            - credit_party_identifier
+            - document_reference_number
+            - external_id
+            - purpose_of_remittance
+            - receiving_business
+            - sending_business
+            type: object
+            properties:
+              credit_party_identifier:
+                type: object
+                description: Credit party identifier
+              retail_rate:
+                type: number
+                description: Retail rate
+              retail_fee:
+                type: number
+                description: Retail fee
+              retail_fee_currency:
+                type: string
+                description: Retail fee currency in ISO 4217 format
+              sender:
+                type: object
+                description: Sender information
+              beneficiary:
+                type: object
+                description: Beneficiary information
+              sending_business:
+                type: object
+                description: Sending business information
+              receiving_business:
+                type: object
+                description: Receiving business information
+              external_id:
+                type: string
+                description: External ID
+              external_code:
+                type: string
+                description: External reference code
+              callback_url:
+                type: string
+                description: Callback URL
+              purpose_of_remittance:
+                type: string
+                description: Purpose of the remittance
+              document_reference_number:
+                type: string
+                description: Reference number of document related to the transaction
+              additional_information_1:
+                type: string
+                description: Additional information
+              additional_information_2:
+                type: string
+                description: Additional information
+              additional_information_3:
+                type: string
+                description: Additional information
+    TransactionExt:
+      content:
+        application/json:
+          schema:
+            required:
+            - credit_party_identifier
+            - external_id
+            - purpose_of_remittance
+            - receiving_business
+            - sending_business
+            type: object
+            properties:
+              credit_party_identifier:
+                type: object
+                description: Credit party identifier
+              retail_rate:
+                type: number
+                description: Retail rate
+              retail_fee:
+                type: number
+                description: Retail fee
+              retail_fee_currency:
+                type: string
+                description: Retail fee currency in ISO 4217 format
+              sender:
+                type: object
+                description: Sender information
+              beneficiary:
+                type: object
+                description: Beneficiary information
+              external_id:
+                type: string
+                description: External ID
+              external_code:
+                type: string
+                description: External reference code
+              callback_url:
+                type: string
+                description: Callback URL
+              purpose_of_remittance:
+                type: string
+                description: Purpose of the remittance
+              document_reference_number:
+                type: string
+                description: Reference number of document related to the transaction
+              additional_information_1:
+                type: string
+                description: Additional information
+              additional_information_2:
+                type: string
+                description: Additional information
+              additional_information_3:
+                type: string
+                description: Additional information
+    TransactionExtB2B:
+      content:
+        application/json:
+          schema:
+            required:
+            - credit_party_identifier
+            - document_reference_number
+            - external_id
+            - purpose_of_remittance
+            - receiving_business
+            - sending_business
+            type: object
+            properties:
+              credit_party_identifier:
+                type: object
+                description: Credit party identifier
+              retail_rate:
+                type: number
+                description: Retail rate
+              retail_fee:
+                type: number
+                description: Retail fee
+              retail_fee_currency:
+                type: string
+                description: Retail fee currency in ISO 4217 format
+              sender:
+                type: object
+                description: Sender information
+              beneficiary:
+                type: object
+                description: Beneficiary information
+              external_id:
+                type: string
+                description: External ID
+              external_code:
+                type: string
+                description: External reference code
+              callback_url:
+                type: string
+                description: Callback URL
+              purpose_of_remittance:
+                type: string
+                description: Purpose of the remittance
+              document_reference_number:
+                type: string
+                description: Reference number of document related to the transaction
+              additional_information_1:
+                type: string
+                description: Additional information
+              additional_information_2:
+                type: string
+                description: Additional information
+              additional_information_3:
+                type: string
+                description: Additional information
+    TransactionAttachment:
+      content:
+        application/json:
+          schema:
+            required:
+            - file
+            - name
+            - type
+            type: object
+            properties:
+              name:
+                type: string
+                description: Name of the attachment
+              type:
+                type: string
+                description: Transaction attachment type
+              file:
+                type: array
+                description: File to upload as an attachment
+                items:
+                  type: string
+                  format: binary
+    TransactionAttachmentExt:
+      content:
+        application/json:
+          schema:
+            required:
+            - file
+            - name
+            - type
+            type: object
+            properties:
+              name:
+                type: string
+                description: Name of the attachment
+              type:
+                type: string
+                description: Transaction attachment type
+              file:
+                type: array
+                description: File to upload as an attachment
+                items:
+                  type: string
+                  format: binary
+    Pet:
+      description: Pet object that needs to be added to the store
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Pet'
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/Pet'
+    UserArray:
+      description: List of user object
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/User'
+  securitySchemes:
+    petstore_auth:
+      type: oauth2
+      flows:
+        implicit:
+          authorizationUrl: https://petstore3.swagger.io/oauth/authorize
+          scopes:
+            write:pets: modify pets in your account
+            read:pets: read your pets
+    api_key:
+      type: apiKey
+      name: api_key
+      in: header
