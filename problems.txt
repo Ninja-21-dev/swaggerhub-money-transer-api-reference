@@ -1,0 +1,8 @@
+/v2/money-transfer/payers/{id}/{transaction_type}/credit-party-information:
+	response quick
+
+money-transfer/quotations/{id}/transactions:
+	requestBody
+
+examples
+links
